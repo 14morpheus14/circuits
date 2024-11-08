@@ -15,7 +15,7 @@ This folder contains two Bristol circuit generators, `aes_128_gcm.cpp` and `tlsv
 3. **Copy Dependencies**: Place the `sha-256-multiblock-aligned.txt` and `aes128_full.txt` files into the `build` folder.
 
 4. **Compile and Run**:
-   - Compile the tests by running the build process in EMP-Toolkit.
+   - Compile the tests by running the build process in EMP-Toolkit (enable multithreading if you deem fit).
    - Execute the tests with:
      ```bash
      bin/test_aes_128_gcm
