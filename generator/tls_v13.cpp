@@ -2034,6 +2034,7 @@ int main(int argc, char **argv) {
 	DeriveClientHandshakeSecret();
     DeriveServerHandshakeSecret();
     printf("Client Application Key shares, Client Application IV, Server Application Secret:\n");
+    DeriveMasterSecret();
     DeriveClientApplicationSecret();
     DeriveClientApplicationKey();
     DeriveClientApplicationIV();
