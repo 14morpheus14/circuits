@@ -1,10 +1,3 @@
-// This file is based on circuits and code originally licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-//
-// Modifications made by Yamya Reiki <reiki.yamya14@gmail.com> are licensed under the GNU General Public License, Version 3.0.
-// See the LICENSE file for the full text of both licenses.
-
 #include <cstring>
 #include <time.h>
 #include <stdbool.h>
@@ -49,6 +42,17 @@ void convert_128bit_bool_array_to_block_array(bool *a_bits, block *a, block one,
     }
 }
 
+void convert_96bit_bool_array_to_block_array(bool *a_bits, block *a, block one, block zero) {
+    // Populate the `a` array in strict big-endian order
+    for (int byteIndex = 0; byteIndex < 12; byteIndex++) {  // 16 bytes
+        for (int bitIndex = 0; bitIndex < 8; bitIndex++) {   // 8 bits per byte
+            // Calculate the position in the big-endian order
+            int bitPosition = (byteIndex) * 8 + (7 - bitIndex);
+            a[byteIndex * 8 + bitIndex] = a_bits[bitPosition] ? one : zero;
+        }
+    }
+}
+
 void xor_512_bits(block *A, block *B, block *C) {
     for (int i = 0; i < 512; i++) {
         C[i] = CircuitExecution::circ_exec->xor_gate(A[i], B[i]);
@@ -69,6 +73,12 @@ void xor_256_bits(block *A, block *B, block *C) {
 
 void xor_128_bits(block *A, block *B, block *C) {
     for (int i = 0; i < 128; i++) {
+        C[i] = CircuitExecution::circ_exec->xor_gate(A[i], B[i]);
+    }
+}
+
+void xor_96_bits(block *A, block *B, block *C) {
+    for (int i = 0; i < 96; i++) {
         C[i] = CircuitExecution::circ_exec->xor_gate(A[i], B[i]);
     }
 }
@@ -133,6 +143,35 @@ void create_128bit_shares(block *input, block *share1, block *share2){
     //prg.random_block(share1, 128);
     // XOR the share1 with input to get share2
     xor_128_bits(share1, input, share2);
+}
+
+void create_96bit_shares(block *input, block *share1, block *share2){
+
+    block one = CircuitExecution::circ_exec->public_label(true);
+    block zero = CircuitExecution::circ_exec->public_label(false);
+        // Seed random number generator
+    srand((unsigned int)time(NULL));
+
+    // Step 1: Generate 32 random bytes (256 bits)
+    unsigned char randomBytes[96/8];
+    for (int i = 0; i < 96/8; i++) {
+        randomBytes[i] = (unsigned char)(rand() % 256);  // Generate a random byte
+    }
+
+    // Step 2: Create a bool array and populate it with bit values
+    bool bitArray[96];
+    for (int i = 0; i < 96/8; i++) {
+        for (int j = 0; j < 8; j++) {
+            // Extract each bit from the byte and store it in the bool array
+            bitArray[i * 8 + j] = (randomBytes[i] >> (7 - j)) & 1;
+        }
+    }
+
+    convert_96bit_bool_array_to_block_array(bitArray, share1, one, zero);
+
+    //PRG prg; //can be used instead
+    //prg.random_block(share1, 256);
+    xor_96_bits(share1, input, share2);
 }
 
 void change_endian(block *input, block *output, int input_len) {
@@ -629,8 +668,8 @@ void DeriveHandshakeSecret_PreMasterSecret() {
 	finalize_plain_prot();
 }
 
-void DeriveHandshakeCryptographicPrelims() {
-	setup_plain_prot(true, "DeriveHandshakeCryptographicPrelims.txt");
+void DeriveClientHandshakeSecret() {
+	setup_plain_prot(true, "DeriveClientHandshakeSecret.txt");
 
 	unsigned char handshake_secret_test_data1[]=
 			{
@@ -701,32 +740,106 @@ void DeriveHandshakeCryptographicPrelims() {
 	//    context = hello_hash,
 	//    len = 32)
 	
+    block client_handshake_traffic_secret[256];
+    // We are only parallelizing only the compilation, not really the circuit, unfortunately.
+    //std::thread client_handshake_thread([&]() {
+       hkdf_expand_label(handshake_secret, 256, "c hs traffic", hello_hash, 256, client_handshake_traffic_secret, 32);
+    //});
+
+    //client_handshake_thread.join();
+    
+    print_many_bytes(client_handshake_traffic_secret, 32);
+	finalize_plain_prot();
+}
+
+void DeriveServerHandshakeSecret() {
+	setup_plain_prot(true, "DeriveServerHandshakeSecret.txt");
+
+	unsigned char handshake_secret_test_data1[]=
+			{
+					0xf5, 0x35, 0x8c, 0x24, 0x36, 0x52, 0x8a, 0x22,
+					0x2f, 0x80, 0x26, 0xee, 0x3d, 0xbe, 0x88, 0x7d,
+					0x39, 0xc3, 0x1f, 0x6f, 0xd3, 0x51, 0x8e, 0x51,
+					0x4b, 0xdb, 0xe0, 0xa9, 0xf0, 0x99, 0x3c, 0xe5
+			};
+
+	unsigned char hello_hash_test_data[] =
+			{
+					0xda, 0x75, 0xce, 0x11, 0x39, 0xac, 0x80, 0xda,
+					0xe4, 0x04, 0x4d, 0xa9, 0x32, 0x35, 0x0c, 0xf6,
+					0x5c, 0x97, 0xcc, 0xc9, 0xe3, 0x3f, 0x1e, 0x6f,
+					0x7d, 0x2d, 0x4b, 0x18, 0xb7, 0x36, 0xff, 0xd5
+			};
+    
+    unsigned char handshake_secret_test_data2[] =
+            {
+                    0x0E, 0xAA, 0x44, 0x22, 0xBF, 0xE1, 0x2F, 0xF2,
+                    0x03, 0xB3, 0x02, 0xD5, 0xCB, 0x24, 0x93, 0x66, 
+                    0x19, 0xB3, 0x4A, 0xE7, 0x74, 0xC5, 0xBE, 0x1B, 
+                    0x25, 0xAA, 0xC0, 0xBC, 0xAE, 0x46, 0x28, 0x7F 
+            };
+
+
+	bool handshake_secret_plaintext1[32 * 8];
+	for (int i = 0; i < 32; i++) {
+		int w = handshake_secret_test_data1[i];
+		for (int j = 0; j < 8; j++) {
+			handshake_secret_plaintext1[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+	bool hello_hash_plaintext[256];
+	for (int i = 0; i < 32; i++) {
+		int w = hello_hash_test_data[i];
+		for (int j = 0; j < 8; j++) {
+			hello_hash_plaintext[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool handshake_secret_plaintext2[32 * 8];
+	for (int i = 0; i < 32; i++) {
+		int w = handshake_secret_test_data2[i];
+		for (int j = 0; j < 8; j++) {
+			handshake_secret_plaintext2[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+	block handshake_secret1[256];
+	ProtocolExecution::prot_exec->feed(handshake_secret1, ALICE, handshake_secret_plaintext1, 256);
+
+	block hello_hash[256];
+	ProtocolExecution::prot_exec->feed(hello_hash, ALICE, hello_hash_plaintext, 256);
+
+    block handshake_secret2[256];
+	ProtocolExecution::prot_exec->feed(handshake_secret2, BOB, handshake_secret_plaintext2, 256);
+    
+    block handshake_secret[256];
+    xor_256_bits(handshake_secret1, handshake_secret2, handshake_secret);
+	
     // server_handshake_traffic_secret = HKDF-Expand-Label(
 	//    key = handshake_secret,
 	//    label = "s hs traffic",
 	//    context = hello_hash,
 	//    len = 32)
-    block client_handshake_traffic_secret[256];
 	block server_handshake_traffic_secret[256];
     // We are only parallelizing only the compilation, not really the circuit, unfortunately.
-    //std::thread client_handshake_thread([&]() {
-       hkdf_expand_label(handshake_secret, 256, "c hs traffic", hello_hash, 256, client_handshake_traffic_secret, 32);
-    //});
     //std::thread server_handshake_thread([&]() {
-        hkdf_expand_label(handshake_secret, 256, "s hs traffic", hello_hash, 256, server_handshake_traffic_secret, 32);
+       hkdf_expand_label(handshake_secret, 256, "s hs traffic", hello_hash, 256, server_handshake_traffic_secret, 32);
     //});
 
     //client_handshake_thread.join();
     //server_handshake_thread.join();
     
-    print_many_bytes(client_handshake_traffic_secret, 32);
     print_many_bytes(server_handshake_traffic_secret, 32);
 	finalize_plain_prot();
 }
 
 // Application
-void DeriveApplicationCryptographicPrelims() {
-	setup_plain_prot(true, "DeriveApplicationCryptographicPrelims.txt");
+void DeriveMasterSecret() {
+	setup_plain_prot(true, "DeriveMasterSecret.txt");
 
     unsigned char test_handshake_secret1[]=
 			{
@@ -736,16 +849,10 @@ void DeriveApplicationCryptographicPrelims() {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 			};
 
-    unsigned char handshake_hash_test_data[] =
-			{
-					0x96, 0x08, 0x10, 0x2a, 0x0f, 0x1c, 0xcc, 0x6d,
-					0xb6, 0x25, 0x0b, 0x7b, 0x7e, 0x41, 0x7b, 0x1a,
-					0x00, 0x0e, 0xaa, 0xda, 0x3d, 0xaa, 0xe4, 0x77,
-					0x7a, 0x76, 0x86, 0xc9, 0xff, 0x83, 0xdf, 0x13
-			};
-
     unsigned char test_output_mask_1[] = 
             {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5,
                     0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
                     0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
             };
@@ -761,7 +868,9 @@ void DeriveApplicationCryptographicPrelims() {
     unsigned char test_output_mask_2[] = 
             {
                     0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
-                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3
+                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3,
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
             };
 
     unsigned char empty_hash[] =
@@ -784,17 +893,8 @@ void DeriveApplicationCryptographicPrelims() {
 		}
 	}
 
-    bool handshake_hash_plaintext[256];
-	for (int i = 0; i < 32; i++) {
-		int w = handshake_hash_test_data[i];
-		for (int j = 0; j < 8; j++) {
-			handshake_hash_plaintext[i * 8 + j] = w & 1;
-			w >>= 1;
-		}
-	}
-
-    bool outputmask1[128];
-    for (int i = 0; i < 16; i++) {
+    bool outputmask1[256];
+    for (int i = 0; i < 32; i++) {
 		int w = test_output_mask_1[i];
 		for (int j = 0; j < 8; j++) {
 			outputmask1[i * 8 + j] = (w & 1) != 0;
@@ -811,8 +911,8 @@ void DeriveApplicationCryptographicPrelims() {
 		}
 	}
 
-    bool outputmask2[128];
-    for (int i = 0; i < 16; i++) {
+    bool outputmask2[256];
+    for (int i = 0; i < 32; i++) {
 		int w = test_output_mask_2[i];
 		for (int j = 0; j < 8; j++) {
 			outputmask2[i * 8 + j] = (w & 1) != 0;
@@ -832,17 +932,14 @@ void DeriveApplicationCryptographicPrelims() {
 	block key1[256];
 	ProtocolExecution::prot_exec->feed(key1, ALICE, key_plaintext1, 256);
     
-    block handshake_hash[256];
-	ProtocolExecution::prot_exec->feed(handshake_hash, ALICE, handshake_hash_plaintext, 256);
-
-    block output_mask1[128];
-    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 128);
+    block output_mask1[256];
+    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 256);
     
     block key2[256];
 	ProtocolExecution::prot_exec->feed(key2, BOB, key_plaintext2, 256);
     
-    block output_mask2[128];
-    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 128);
+    block output_mask2[256];
+    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 256);
     
     block key[256];
     xor_256_bits(key1, key2, key);
@@ -857,30 +954,357 @@ void DeriveApplicationCryptographicPrelims() {
     
 	block master_secret[256];
 	hkdf_extract(derived_secret, 256, zero_key, 256, master_secret);
+    block master_secret_share1[256];
+    block master_secret_share2[256];
+    create_256bit_shares(master_secret, master_secret_share1, master_secret_share2);
+    block output1[256];
+    xor_256_bits(master_secret_share1, output_mask1, output1);
+    block output2[256];
+    xor_256_bits(master_secret_share2, output_mask2, output2);
+    print_hash(output1);
+    print_hash(output2);
+    finalize_plain_prot();
+}
 
+void DeriveClientApplicationSecret() {
+	setup_plain_prot(true, "DeriveClientApplicationSecret.txt");
+
+    unsigned char test_master_secret1[]=
+			{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+    unsigned char handshake_hash_test_data[] =
+			{
+					0x96, 0x08, 0x10, 0x2a, 0x0f, 0x1c, 0xcc, 0x6d,
+					0xb6, 0x25, 0x0b, 0x7b, 0x7e, 0x41, 0x7b, 0x1a,
+					0x00, 0x0e, 0xaa, 0xda, 0x3d, 0xaa, 0xe4, 0x77,
+					0x7a, 0x76, 0x86, 0xc9, 0xff, 0x83, 0xdf, 0x13
+			};
+
+    unsigned char test_output_mask_1[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5,
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
+            };
+    
+    unsigned char test_master_secret2[] =
+            {
+                    0x1d, 0xc8, 0x26, 0xe9, 0x36, 0x06, 0xaa, 0x6f, 
+                    0xdc, 0x0a, 0xad, 0xc1, 0x2f, 0x74, 0x1b, 0x01, 
+                    0x04, 0x6a, 0xa6, 0xb9, 0x9f, 0x69, 0x1e, 0xd2,
+                    0x21, 0xa9, 0xf0, 0xca, 0x04, 0x3f, 0xbe, 0xac 
+            };
+    
+    unsigned char test_output_mask_2[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3,
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
+            };
+
+	bool master_secret1[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_master_secret1[i];
+		for (int j = 0; j < 8; j++) {
+			master_secret1[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool handshake_hash_plaintext[256];
+	for (int i = 0; i < 32; i++) {
+		int w = handshake_hash_test_data[i];
+		for (int j = 0; j < 8; j++) {
+			handshake_hash_plaintext[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask1[256];
+    for (int i = 0; i < 32; i++) {
+		int w = test_output_mask_1[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask1[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+    bool master_secret2[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_master_secret2[i];
+		for (int j = 0; j < 8; j++) {
+			master_secret2[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask2[256];
+    for (int i = 0; i < 32; i++) {
+		int w = test_output_mask_2[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask2[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+	block mastersecret1[256];
+	ProtocolExecution::prot_exec->feed(mastersecret1, ALICE, master_secret1, 256);
+    
+    block handshake_hash[256];
+	ProtocolExecution::prot_exec->feed(handshake_hash, ALICE, handshake_hash_plaintext, 256);
+
+    block output_mask1[256];
+    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 256);
+    
+    block mastersecret2[256];
+	ProtocolExecution::prot_exec->feed(mastersecret2, BOB, master_secret2, 256);
+    
+    block output_mask2[256];
+    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 256);
+    
+    block master_secret[256];
+    xor_256_bits(mastersecret1, mastersecret2, master_secret);
+	
     // client_application_traffic_secret = HKDF-Expand-Label(
 	//    key = master_secret,
 	//    label = "c ap traffic",
 	//    context = handshake_hash,
 	//    len = 32)
 
-    // server_application_traffic_secret = HKDF-Expand-Label(
-	//    key = master_secret,
-	//    label = "s ap traffic",
-	//    context = handshake_hash,
-	//    len = 32)
-
     block client_application_traffic_secret[256];
-    block server_application_traffic_secret[256];
     // We are only parallelizing only the compilation, not really the circuit, unfortunately.
     //std::thread client_thread([&]() {
         hkdf_expand_label(master_secret, 256, "c ap traffic", handshake_hash, 256, client_application_traffic_secret, 32);
     //});
-    //std::thread server_thread([&]() {
+    block client_application_traffic_secret_share1[256];
+    block client_application_traffic_secret_share2[256];
+    create_256bit_shares(client_application_traffic_secret, client_application_traffic_secret_share1, client_application_traffic_secret_share2);
+    block output1[256];
+    xor_256_bits(client_application_traffic_secret_share1, output_mask1, output1);
+    block output2[256];
+    xor_256_bits(client_application_traffic_secret_share2, output_mask2, output2);
+    print_hash(output1);
+    print_hash(output2);
+    finalize_plain_prot();
+}
+
+void DeriveServerApplicationSecret() {
+	setup_plain_prot(true, "DeriveServerApplicationSecret.txt");
+
+    unsigned char test_master_secret1[]=
+			{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+    unsigned char handshake_hash_test_data[] =
+			{
+					0x96, 0x08, 0x10, 0x2a, 0x0f, 0x1c, 0xcc, 0x6d,
+					0xb6, 0x25, 0x0b, 0x7b, 0x7e, 0x41, 0x7b, 0x1a,
+					0x00, 0x0e, 0xaa, 0xda, 0x3d, 0xaa, 0xe4, 0x77,
+					0x7a, 0x76, 0x86, 0xc9, 0xff, 0x83, 0xdf, 0x13
+			};
+
+    unsigned char test_output_mask_1[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5,
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
+            };
+    
+    unsigned char test_master_secret2[] =
+            {
+                    0x1d, 0xc8, 0x26, 0xe9, 0x36, 0x06, 0xaa, 0x6f, 
+                    0xdc, 0x0a, 0xad, 0xc1, 0x2f, 0x74, 0x1b, 0x01, 
+                    0x04, 0x6a, 0xa6, 0xb9, 0x9f, 0x69, 0x1e, 0xd2,
+                    0x21, 0xa9, 0xf0, 0xca, 0x04, 0x3f, 0xbe, 0xac 
+            };
+    
+    unsigned char test_output_mask_2[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3,
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
+            };
+
+	bool master_secret1[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_master_secret1[i];
+		for (int j = 0; j < 8; j++) {
+			master_secret1[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool handshake_hash_plaintext[256];
+	for (int i = 0; i < 32; i++) {
+		int w = handshake_hash_test_data[i];
+		for (int j = 0; j < 8; j++) {
+			handshake_hash_plaintext[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask1[256];
+    for (int i = 0; i < 32; i++) {
+		int w = test_output_mask_1[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask1[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+    bool master_secret2[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_master_secret2[i];
+		for (int j = 0; j < 8; j++) {
+			master_secret2[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask2[256];
+    for (int i = 0; i < 32; i++) {
+		int w = test_output_mask_2[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask2[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+	block mastersecret1[256];
+	ProtocolExecution::prot_exec->feed(mastersecret1, ALICE, master_secret1, 256);
+    
+    block handshake_hash[256];
+	ProtocolExecution::prot_exec->feed(handshake_hash, ALICE, handshake_hash_plaintext, 256);
+
+    block output_mask1[256];
+    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 256);
+    
+    block mastersecret2[256];
+	ProtocolExecution::prot_exec->feed(mastersecret2, BOB, master_secret2, 256);
+    
+    block output_mask2[256];
+    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 256);
+    
+    block master_secret[256];
+    xor_256_bits(mastersecret1, mastersecret2, master_secret);
+	
+    // client_application_traffic_secret = HKDF-Expand-Label(
+	//    key = master_secret,
+	//    label = "c ap traffic",
+	//    context = handshake_hash,
+	//    len = 32)
+
+    block server_application_traffic_secret[256];
+    // We are only parallelizing only the compilation, not really the circuit, unfortunately.
+    //std::thread client_thread([&]() {
         hkdf_expand_label(master_secret, 256, "s ap traffic", handshake_hash, 256, server_application_traffic_secret, 32);
     //});
+    block server_application_traffic_secret_share1[256];
+    block server_application_traffic_secret_share2[256];
+    create_256bit_shares(server_application_traffic_secret, server_application_traffic_secret_share1, server_application_traffic_secret_share2);
+    block output1[256];
+    xor_256_bits(server_application_traffic_secret_share1, output_mask1, output1);
+    block output2[256];
+    xor_256_bits(server_application_traffic_secret_share2, output_mask2, output2);
+    print_hash(output1);
+    print_hash(output2);
+    finalize_plain_prot();
+}
 
-    //client_thread.join();
+void DeriveClientApplicationKey() {
+	setup_plain_prot(true, "DeriveClientApplicationKey.txt");
+
+    unsigned char test_client_secret1[]=
+			{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+    unsigned char test_output_mask_1[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
+            };
+    
+    unsigned char test_client_secret2[] =
+            {
+                    0x1d, 0xc8, 0x26, 0xe9, 0x36, 0x06, 0xaa, 0x6f, 
+                    0xdc, 0x0a, 0xad, 0xc1, 0x2f, 0x74, 0x1b, 0x01, 
+                    0x04, 0x6a, 0xa6, 0xb9, 0x9f, 0x69, 0x1e, 0xd2,
+                    0x21, 0xa9, 0xf0, 0xca, 0x04, 0x3f, 0xbe, 0xac 
+            };
+    
+    unsigned char test_output_mask_2[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3
+            };
+
+	bool client_secret1[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_client_secret1[i];
+		for (int j = 0; j < 8; j++) {
+			client_secret1[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask1[128];
+    for (int i = 0; i < 16; i++) {
+		int w = test_output_mask_1[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask1[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+    bool client_secret2[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_client_secret2[i];
+		for (int j = 0; j < 8; j++) {
+			client_secret2[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask2[128];
+    for (int i = 0; i < 16; i++) {
+		int w = test_output_mask_2[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask2[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+	block clientsecret1[256];
+	ProtocolExecution::prot_exec->feed(clientsecret1, ALICE, client_secret1, 256);
+    
+    block output_mask1[128];
+    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 128);
+    
+    block clientsecret2[256];
+	ProtocolExecution::prot_exec->feed(clientsecret2, BOB, client_secret2, 256);
+    
+    block output_mask2[128];
+    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 128);
+    
+    block client_application_traffic_secret[256];
+    xor_256_bits(clientsecret1, clientsecret2, client_application_traffic_secret);
 
     // client_application_key = HKDF-Expand-Label(
 	//    key = client_application_traffic_secret,
@@ -888,24 +1312,10 @@ void DeriveApplicationCryptographicPrelims() {
 	//    context = "",
 	//    len = 16)
 
-    // client_application_iv = HKDF-Expand-Label(
-	//    key = client_application_traffic_secret,
-	//    label = "iv",
-	//    context = "",
-	//    len = 16)
     block client_application_key[128];
-	block client_application_iv[96];
-    //std::thread key_thread([&]() {
+	//std::thread key_thread([&]() {
         hkdf_expand_label(client_application_traffic_secret, 256, "key", NULL, 0, client_application_key, 16);
     //});
-
-    //std::thread iv_thread([&]() {
-        hkdf_expand_label(client_application_traffic_secret, 256, "iv", NULL, 0, client_application_iv, 12);
-    //});
-    
-    //server_thread.join();
-    //key_thread.join();
-    //iv_thread.join();
 
     block client_application_key_share1[128];
     block client_application_key_share2[128];
@@ -918,11 +1328,117 @@ void DeriveApplicationCryptographicPrelims() {
 
     print_many_bytes(output1, 16);
     print_many_bytes(output2, 16);
-    print_many_bytes(client_application_iv, 12);
-    print_hash(server_application_traffic_secret);
-	finalize_plain_prot();
+    finalize_plain_prot();
 }
 
+void DeriveClientApplicationIV() {
+	setup_plain_prot(true, "DeriveClientApplicationIV.txt");
+
+    unsigned char test_client_secret1[]=
+			{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+    unsigned char test_output_mask_1[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcc, 0xcd, 0xfa
+            };
+    
+    unsigned char test_client_secret2[] =
+            {
+                    0x1d, 0xc8, 0x26, 0xe9, 0x36, 0x06, 0xaa, 0x6f, 
+                    0xdc, 0x0a, 0xad, 0xc1, 0x2f, 0x74, 0x1b, 0x01, 
+                    0x04, 0x6a, 0xa6, 0xb9, 0x9f, 0x69, 0x1e, 0xd2,
+                    0x21, 0xa9, 0xf0, 0xca, 0x04, 0x3f, 0xbe, 0xac 
+            };
+    
+    unsigned char test_output_mask_2[] = 
+            {
+                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
+                    0xdd, 0xcf, 0xcd, 0xfa
+            };
+
+	bool client_secret1[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_client_secret1[i];
+		for (int j = 0; j < 8; j++) {
+			client_secret1[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask1[96];
+    for (int i = 0; i < 12; i++) {
+		int w = test_output_mask_1[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask1[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+    bool client_secret2[256];
+	for (int i = 0; i < 32; i++) {
+		int w = test_client_secret2[i];
+		for (int j = 0; j < 8; j++) {
+			client_secret2[i * 8 + j] = w & 1;
+			w >>= 1;
+		}
+	}
+
+    bool outputmask2[96];
+    for (int i = 0; i < 12; i++) {
+		int w = test_output_mask_2[i];
+		for (int j = 0; j < 8; j++) {
+			outputmask2[i * 8 + j] = (w & 1) != 0;
+			w >>= 1;
+		}
+	}
+
+	block clientsecret1[256];
+	ProtocolExecution::prot_exec->feed(clientsecret1, ALICE, client_secret1, 256);
+    
+    block output_mask1[96];
+    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 96);
+    
+    block clientsecret2[256];
+	ProtocolExecution::prot_exec->feed(clientsecret2, BOB, client_secret2, 256);
+    
+    block output_mask2[96];
+    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 96);
+    
+    block client_application_traffic_secret[256];
+    xor_256_bits(clientsecret1, clientsecret2, client_application_traffic_secret);
+
+    // client_application_iv = HKDF-Expand-Label(
+	//    key = client_application_traffic_secret,
+	//    label = "iv",
+	//    context = "",
+	//    len = 12)
+
+    block client_application_iv[96];
+	//std::thread iv_thread([&]() {
+        hkdf_expand_label(client_application_traffic_secret, 256, "iv", NULL, 0, client_application_iv, 12);
+    //});
+    
+    block client_application_iv_share1[128];
+    block client_application_iv_share2[128];
+    create_96bit_shares(client_application_iv, client_application_iv_share1, client_application_iv_share2);
+    
+	block output1[128];
+    block output2[128];
+    xor_96_bits(client_application_iv_share1, output_mask1, output1);
+    xor_96_bits(client_application_iv_share2, output_mask2, output2);
+
+    print_many_bytes(output1, 12);
+    print_many_bytes(output2, 12);
+    finalize_plain_prot();
+}
+
+// Encryption
 void aes_128_gcm_encrypt(block *aad, int aad_len, block *iv, int iv_len, block *key, int key_len, block *plaintext, int plaintext_len, 
 block *ciphertext, int ciphertext_len, block *tag, int tag_len){
     
@@ -1515,9 +2031,13 @@ int main(int argc, char **argv) {
 	printf("Handshake Secret Shares:\n");
     DeriveHandshakeSecret_PreMasterSecret();
     printf("Server Handshake Secret and Client Handshake Secret:\n");
-	DeriveHandshakeCryptographicPrelims();
+	DeriveClientHandshakeSecret();
+    DeriveServerHandshakeSecret();
     printf("Client Application Key shares, Client Application IV, Server Application Secret:\n");
-    DeriveApplicationCryptographicPrelims();
+    DeriveClientApplicationSecret();
+    DeriveClientApplicationKey();
+    DeriveClientApplicationIV();
+    DeriveServerApplicationSecret();
     printf("SMTP Encrypted RCPT TO:<email-id>\\r\\n command:\n");
     DeriveSMTPRCPTTOCommandCiphertext();
     printf("SMTP Encrypted TO:<email-id>\\r\\n command:\n");
