@@ -24,9 +24,14 @@ This work is not industry-ready and can be further optimized as required. The ci
 
 The memory leak issue in the [n-for-1-auth/circuits](https://github.com/n-for-1-auth/circuits) repository, fixed in commit `35135df7b05ad2c0cba3e0bfffea8641d6629a9e`, has been taken into account in this repository. The TLS cryptographic preliminary generation circuits are based on the version of that repository after this fix, ensuring improved memory management.
 
-## License Information
+## License
 
-This repository is dual-licensed due to its foundation on previous work found at [n-for-1-auth/circuits](https://github.com/n-for-1-auth/circuits.git), licensed under the Apache License 2.0. The current repository is licensed under GPLv3, incorporating both licenses.
+This repository is dual-licensed:
+
+- **GPLv3**: This work, including any modifications, is licensed under the [GNU General Public License, Version 3 (GPLv3)](LICENSE).
+- **Apache 2.0**: Some portions of this repository are based on works licensed under the [Apache License, Version 2.0](LICENSE-APACHE) from [n-for-1-auth/circuits](https://github.com/n-for-1-auth/circuits).
+
+You may choose to use this work under either license, but any modifications to the Apache-licensed portions are licensed under GPLv3.
 
 ---
 
