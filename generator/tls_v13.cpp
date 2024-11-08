@@ -1,4 +1,4 @@
-// This file is based on aes128_full.txt circuit originally licensed under the Apache License, Version 2.0 (the "License");
+// This file is based on circuits and code originally licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 //
