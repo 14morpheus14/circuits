@@ -1215,12 +1215,7 @@ void DeriveServerApplicationSecret() {
     block server_application_traffic_secret_share1[256];
     block server_application_traffic_secret_share2[256];
     create_256bit_shares(server_application_traffic_secret, server_application_traffic_secret_share1, server_application_traffic_secret_share2);
-    block output1[256];
-    xor_256_bits(server_application_traffic_secret_share1, output_mask1, output1);
-    block output2[256];
-    xor_256_bits(server_application_traffic_secret_share2, output_mask2, output2);
-    print_hash(output1);
-    print_hash(output2);
+    print_hash(server_application_traffic_secret);
     finalize_plain_prot();
 }
 
