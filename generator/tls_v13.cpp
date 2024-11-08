@@ -1114,28 +1114,12 @@ void DeriveServerApplicationSecret() {
 					0x7a, 0x76, 0x86, 0xc9, 0xff, 0x83, 0xdf, 0x13
 			};
 
-    unsigned char test_output_mask_1[] = 
-            {
-                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
-                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5,
-                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
-                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
-            };
-    
     unsigned char test_master_secret2[] =
             {
                     0x1d, 0xc8, 0x26, 0xe9, 0x36, 0x06, 0xaa, 0x6f, 
                     0xdc, 0x0a, 0xad, 0xc1, 0x2f, 0x74, 0x1b, 0x01, 
                     0x04, 0x6a, 0xa6, 0xb9, 0x9f, 0x69, 0x1e, 0xd2,
                     0x21, 0xa9, 0xf0, 0xca, 0x04, 0x3f, 0xbe, 0xac 
-            };
-    
-    unsigned char test_output_mask_2[] = 
-            {
-                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
-                    0xdd, 0xcf, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa3,
-                    0xff, 0x34, 0x28, 0x91, 0xd3, 0x21, 0x00, 0x40,
-                    0xdd, 0xcc, 0xcd, 0xfa, 0xb2, 0xb7, 0xaa, 0xa5
             };
 
 	bool master_secret1[256];
@@ -1156,29 +1140,11 @@ void DeriveServerApplicationSecret() {
 		}
 	}
 
-    bool outputmask1[256];
-    for (int i = 0; i < 32; i++) {
-		int w = test_output_mask_1[i];
-		for (int j = 0; j < 8; j++) {
-			outputmask1[i * 8 + j] = (w & 1) != 0;
-			w >>= 1;
-		}
-	}
-
     bool master_secret2[256];
 	for (int i = 0; i < 32; i++) {
 		int w = test_master_secret2[i];
 		for (int j = 0; j < 8; j++) {
 			master_secret2[i * 8 + j] = w & 1;
-			w >>= 1;
-		}
-	}
-
-    bool outputmask2[256];
-    for (int i = 0; i < 32; i++) {
-		int w = test_output_mask_2[i];
-		for (int j = 0; j < 8; j++) {
-			outputmask2[i * 8 + j] = (w & 1) != 0;
 			w >>= 1;
 		}
 	}
@@ -1189,14 +1155,8 @@ void DeriveServerApplicationSecret() {
     block handshake_hash[256];
 	ProtocolExecution::prot_exec->feed(handshake_hash, ALICE, handshake_hash_plaintext, 256);
 
-    block output_mask1[256];
-    ProtocolExecution::prot_exec->feed(output_mask1, ALICE, outputmask1, 256);
-    
     block mastersecret2[256];
 	ProtocolExecution::prot_exec->feed(mastersecret2, BOB, master_secret2, 256);
-    
-    block output_mask2[256];
-    ProtocolExecution::prot_exec->feed(output_mask2, BOB, outputmask2, 256);
     
     block master_secret[256];
     xor_256_bits(mastersecret1, mastersecret2, master_secret);
@@ -1212,9 +1172,6 @@ void DeriveServerApplicationSecret() {
     //std::thread client_thread([&]() {
         hkdf_expand_label(master_secret, 256, "s ap traffic", handshake_hash, 256, server_application_traffic_secret, 32);
     //});
-    block server_application_traffic_secret_share1[256];
-    block server_application_traffic_secret_share2[256];
-    create_256bit_shares(server_application_traffic_secret, server_application_traffic_secret_share1, server_application_traffic_secret_share2);
     print_hash(server_application_traffic_secret);
     finalize_plain_prot();
 }
