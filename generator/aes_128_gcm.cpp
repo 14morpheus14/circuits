@@ -1,8 +1,15 @@
-// Author: Yamya Reiki yamya.reiki14@gmail.com
+// Author: Yamya Reiki <yamya.reiki14@gmail.com>
 // Based on: 
 // 1. NIST Special Publication 800-38D Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC, Morris Dworkin
 // 2. The Galois/Counter Mode of Operation (GCM) David A. McGrew, Cisco Systems, Inc., John Viega, Secure Software
-// 3. aes-128-full.txt from https://github.com/n-for-1-auth/circuits/blob/main/aes/aes128_full.txt
+// This file is based on aes-128-full.txt from https://github.com/n-for-1-auth/circuits/blob/main/aes/aes128_full.txt 
+// originally licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// Modifications made by Yamya Reiki <yamya.reiki14@gmail.com> are licensed under the GNU General Public License, Version 3.0.
+// See the LICENSE file for the full text of both licenses.
+
 #include <cstring>
 #include <math.h>
 #include "emp-tool/emp-tool.h"
