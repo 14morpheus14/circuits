@@ -1,0 +1,13 @@
+NOTICE
+
+This repository, "COCO's Collection of Circuits," is a collection of cryptographic circuits designed for TLS v1.3 and AES-128 in Galois/Counter Mode (GCM), created as part of the authentication library COCO. It is dual-licensed under the GNU General Public License v3.0 (GPLv3) and the Apache License v2.0 due to dependencies on prior works. You may use and distribute this work under either license.
+
+This project includes contributions based on the following Apache 2.0 licensed work:
+- **n-for-1-auth/circuits**: Certain circuits in this repository are derived from, or are modifications of, works originally published under the Apache License 2.0 by the [n-for-1-auth/circuits](https://github.com/n-for-1-auth/circuits) repository. Specifically, `aes128_full.txt` and `sha-256-multiblock-aligned.txt` circuits have been unmodified and used as part of this project.
+
+The Apache 2.0 license for these contributions can be found in the LICENSE-APACHE file.
+
+---
+Dedication:
+
+This work is dedicated to Divya Jyoti Das (alias: Coco), whose support and encouragement made it possible. The library, COCO (Collaborative Oblivious Computation for Orthogonal Authentication), is named in her honor.
