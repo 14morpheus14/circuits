@@ -1,6 +1,6 @@
 # COCO's Collection of Circuits
 
-**COCO** stands for *Collaborative Oblivious Computation for Orthogonal Authentication*. This collection of circuits is named in dedication to **Divya Jyoti Das** (alias: *Coco*), whose unwavering support and encouragement made this work possible.
+**COCO** stands for *Collaborative Oblivious Computation for Orthogonal Authentication*. This collection of circuits is named in dedication to **Divya Jyoti Das** (alias: *Coco*), whose unwavering support and encouragement made this work possible. Currently, COCO Auth in itself does not utilize these circuits as we do not intend to consider email or SMS-based two-factor authentication due to privacy and security concerns. We recognize that such methods may still introduce potential points of failure and risk of privacy leaks, as a malicious authenticator could log personally identifiable information (PII) in the sender’s email or SMS account. However, this repository has been provided to support possible future policy changes or to facilitate secure multiparty computations within COCO Auth as required. Thus, consider this a comprehensive repository of circuits that may serve future needs, and may constantly keep updating.
 
 ## Dependency Folders
 
@@ -10,15 +10,17 @@
 ## Major Folders
 
 - **aes-gcm**: This folder contains the circuit for AES-128 in GCM mode.
-- **tlsv13**: This folder contains the circuits required for conducting a TLS v1.3 session.
+- **tlsv13**: This folder contains the circuits required for conducting a TLS v1.3 session (inclusive of SMTP over TLS).
 
 ## Important Notes
 
 ### Optimization and Industry Readiness
 
-This work is not industry-ready and can be further optimized as required. The circuits provided here can benefit from more efficient implementations of certain cryptographic operations using the EMP-toolkit. For example:
+This work is not industry-ready and can be further optimized as required. The author is, therefore, not liable to any utilization of these circuits by anyone for any purposes. The circuits provided here can benefit from more efficient implementations of certain cryptographic operations using the EMP-toolkit. For example:
 - **AES-128 in GCM**: Could utilize a more optimized implementation of Galois Field multiplication.
 - **TLS v1.3 circuits**: Can take advantage of EMP-tool's Pseudo-Random Generator (PRG) to enhance efficiency and reduce redundancy.
+
+However, these circuits work fine for our utility.
 
 ### Memory Leak Consideration
 
